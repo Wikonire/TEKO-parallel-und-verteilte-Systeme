@@ -1,0 +1,31 @@
+
+@startuml
+title Parallel Π-Berechnung
+
+component "Main (pi.py)" {
+  [Argument Parsing]
+  [Segment-Generator]
+  [Dispatcher]
+}
+
+database "Hosts" as H
+
+component "Local Workers" {
+  [GIL-Threads]
+  [ThreadPool]
+  [Processes]
+  [Process Pool]
+}
+
+component "Remote Worker" {
+  [SSH-Client] --> H : ssh Aufruf
+  H --> [pi.py --internal] : Teilsegment
+}
+
+[Dispatcher] --> [GIL-Threads]
+[Dispatcher] --> [ThreadPool]
+[Dispatcher] --> [Processes]
+[Dispatcher] --> [Process Pool]
+[Dispatcher] --> [SSH-Client]
+
+@enduml
