@@ -1,0 +1,5 @@
+/venv/**
+/venv/lib64/
+/id_rsa.pub
+/id_rsa
+/code/authorized_keys
