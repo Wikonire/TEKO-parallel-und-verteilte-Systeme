@@ -1,0 +1,22 @@
+version: '3.8'
+services:
+  worker1:
+    image: pi-calculator:latest
+    volumes:
+      - ./code:/app
+    working_dir: /app
+  worker2:
+    image: pi-calculator:latest
+    volumes:
+      - ./code:/app
+    working_dir: /app
+  master:
+    image: pi-calculator:latest
+    volumes:
+      - ./code:/app
+    working_dir: /app
+    entrypoint: >
+      sh -c "python pi.py \
+        --hosts worker1,worker2 \
+        --seg-size 500000 \
+        --pool 0"

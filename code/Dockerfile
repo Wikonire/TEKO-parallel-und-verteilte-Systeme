@@ -1,7 +1,13 @@
-# code/Dockerfile
+# code/Dockerfile.ssh
 FROM python:3.10-slim
+RUN apt-get update && apt-get install -y openssh-server \
+    && mkdir /var/run/sshd \
+    && echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
 WORKDIR /app
-COPY code/requirements.txt .
+COPY pi.py requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
-COPY code/pi.py .
-ENTRYPOINT ["python3", "pi.py"]
+# Public Key ins Image kopieren (für Demo):
+# better: über volume oder Docker secret reinziehen
+COPY id_rsa.pub /root/.ssh/authorized_keys
+EXPOSE 22
+CMD ["/usr/sbin/sshd","-D"]
