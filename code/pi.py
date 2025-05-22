@@ -10,7 +10,8 @@ from queue import Queue
 import logging
 import functools
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdout)])
+
 
 
 def leibniz_term(k):
@@ -78,12 +79,13 @@ def mode_hosts(segments, hosts, timeout):
     def ssh_worker(i, seg, host):
         start, count = seg
         cmd = [
-            "ssh", host, sys.executable, __file__,
+            "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+            host, sys.executable, __file__,
             "--internal", "--start", str(start), "--count", str(count)
         ]
         try:
             logging.info(f"Segment {i} startet auf Host {host} ({start}, {count})")
-            out = subprocess.check_output(cmd, text=True, timeout=timeout)
+            out = subprocess.check_output(cmd, text=True, timeout=60)
             results[i] = float(out.strip())
         except subprocess.SubprocessError as e:
             logging.error(f"SSH-Fehler auf {host}: {e}")
