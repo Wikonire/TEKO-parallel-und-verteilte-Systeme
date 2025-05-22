@@ -1,6 +1,16 @@
-import argparse, math, sys, time, threading, subprocess
+import argparse
+import math
+import sys
+import time
+import threading
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
-from multiprocessing import Process, Pool
+from multiprocessing import Process, Pool, Manager
+from queue import Queue
+import logging
+import functools
+
+logging.basicConfig(level=logging.INFO)
 
 
 def leibniz_term(k):
@@ -8,11 +18,12 @@ def leibniz_term(k):
 
 
 def compute_segment(start, count):
-    s = 0.0
-    for k in range(start, start + count):
-        s += leibniz_term(k)
-    return s
+    return sum(leibniz_term(k) for k in range(start, start + count))
 
+def run_internal_mode(start, count):
+    result = compute_segment(start, count)
+    print(result, flush=True)
+    sys.exit(0)
 
 def mode_gil(segments):
     results = [0] * len(segments)
@@ -20,120 +31,167 @@ def mode_gil(segments):
     def worker(i, seg):
         results[i] = compute_segment(*seg)
 
-    threads = []
-    for i, seg in enumerate(segments):
-        t = threading.Thread(target=worker, args=(i, seg))
-        threads.append(t);
+    threads = [threading.Thread(target=worker, args=(i, seg)) for i, seg in enumerate(segments)]
+    for t in threads:
         t.start()
-    for t in threads: t.join()
+    for t in threads:
+        t.join()
+
     return sum(results)
 
 
 def mode_threadpool(segments):
-    with ThreadPoolExecutor() as ex:
-        parts = list(ex.map(lambda sc: compute_segment(*sc), segments))
-    return sum(parts)
+    with ThreadPoolExecutor() as executor:
+        results = executor.map(lambda seg: compute_segment(*seg), segments)
+    return sum(results)
 
 
 def mode_process(segments):
-    manager = {}
-    procs = []
-    lock = threading.Lock()
+    with Manager() as manager:
+        result_dict = manager.dict()
 
-    def worker(seg):
-        nonlocal manager
-        res = compute_segment(*seg)
-        with lock:
-            manager.setdefault('sum', 0.0)
-            manager['sum'] += res
+        def worker(seg, idx):
+            result_dict[idx] = compute_segment(*seg)
 
-    for seg in segments:
-        p = Process(target=worker, args=(seg,))
-        procs.append(p);
-        p.start()
-    for p in procs: p.join()
-    return manager.get('sum', 0.0)
+        processes = [Process(target=worker, args=(seg, idx)) for idx, seg in enumerate(segments)]
+        for p in processes:
+            p.start()
+        for p in processes:
+            p.join()
+
+        return sum(result_dict.values())
+
+
+def pool_worker(seg):
+    return compute_segment(*seg)
 
 
 def mode_pool(segments, n):
-    with Pool(processes=n) as p:
-        parts = p.map(lambda sc: compute_segment(*sc), segments)
-    return sum(parts)
+    with Pool(processes=n) as pool:
+        results = pool.map(pool_worker, segments)
+    return sum(results)
 
 
-def mode_hosts(segments, hosts):
-    procs = []
-    results = [0] * len(segments)
+def mode_hosts(segments, hosts, timeout):
+    results = [0.0] * len(segments)
 
     def ssh_worker(i, seg, host):
         start, count = seg
         cmd = [
-            "ssh", host,
-            sys.executable, __file__,
-            "--internal", "--start", str(start),
-            "--count", str(count)
+            "ssh", host, sys.executable, __file__,
+            "--internal", "--start", str(start), "--count", str(count)
         ]
-        out = subprocess.check_output(cmd, text=True)
-        results[i] = float(out.strip())
+        try:
+            logging.info(f"Segment {i} startet auf Host {host} ({start}, {count})")
+            out = subprocess.check_output(cmd, text=True, timeout=timeout)
+            results[i] = float(out.strip())
+        except subprocess.SubprocessError as e:
+            logging.error(f"SSH-Fehler auf {host}: {e}")
 
-    threads = []
-    for i, seg in enumerate(segments):
-        host = hosts[i % len(hosts)]
-        t = threading.Thread(target=ssh_worker, args=(i, seg, host))
-        threads.append(t);
+    threads = [threading.Thread(target=ssh_worker, args=(i, seg, hosts[i % len(hosts)]))
+               for i, seg in enumerate(segments)]
+    for t in threads:
         t.start()
-    for t in threads: t.join()
+    for t in threads:
+        t.join()
+
+    return sum(results)
+
+
+def producer_consumer(segments, num_consumers):
+    q = Queue()
+    results = [0.0] * len(segments)
+
+    def producer():
+        for idx, seg in enumerate(segments):
+            q.put((idx, seg))
+        for _ in range(num_consumers):
+            q.put(None)
+
+    def consumer():
+        while True:
+            item = q.get()
+            if item is None:
+                q.task_done()
+                break
+            idx, seg = item
+            mapped = map(leibniz_term, range(seg[0], seg[0] + seg[1]))
+            filtered = filter(lambda x: abs(x) > 1e-10, mapped)
+            results[idx] = functools.reduce(lambda a, b: a + b, filtered, 0)
+            q.task_done()
+
+    prod_thread = threading.Thread(target=producer)
+    consumers = [threading.Thread(target=consumer) for _ in range(num_consumers)]
+
+    prod_thread.start()
+    for c in consumers:
+        c.start()
+
+    prod_thread.join()
+    q.join()
+    for c in consumers:
+        c.join()
+
     return sum(results)
 
 
 def main():
-    p = argparse.ArgumentParser(description="π via Leibniz-Reihe parallel")
-    group = p.add_mutually_exclusive_group(required=True)
+    parser = argparse.ArgumentParser(description="π-Berechnung via Leibniz-Reihe parallel")
+
+    parser.add_argument("--internal", action="store_true")
+    parser.add_argument("--start", type=int)
+    parser.add_argument("--count", type=int)
+
+    # Interner Modus separat behandeln, bevor andere Argumente geprüft werden:
+    args, remaining_args = parser.parse_known_args()
+
+    if args.internal:
+        if args.start is None or args.count is None:
+            parser.error("--internal benötigt --start und --count.")
+        run_internal_mode(args.start, args.count)
+
+    # Für alle anderen Modi jetzt explizit die restlichen Argumente prüfen:
+    group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--with-gil", action="store_true")
     group.add_argument("--with-thread", action="store_true")
     group.add_argument("--with-proces", action="store_true")
     group.add_argument("--pool", type=int)
     group.add_argument("--hosts", type=lambda s: s.split(","))
-    p.add_argument("--seg-size", type=int, default=1_000_000)
-    # internale Flags für Hosts
-    p.add_argument("--internal", action="store_true")
-    p.add_argument("--start", type=int)
-    p.add_argument("--count", type=int)
-    args = p.parse_args()
+    group.add_argument("--producer-consumer", type=int)
 
-    # Internal mode: nur ein Segment berechnen und ausgeben
-    if args.internal:
-        res = compute_segment(args.start, args.count)
-        print(res)
-        sys.exit(0)
+    parser.add_argument("-i", "--iterations", type=int, default=1_000_000)
+    parser.add_argument("--seg-size", type=int, default=1_000_000)
+    parser.add_argument("--timeout", type=int, default=60)
 
-    # Segmente bilden
-    total_terms = args.seg_size * (len(args.hosts) if args.hosts else (
-        args.pool or threading.active_count() if args.pool else
-        (1 if args.with_gil or args.with_thread or args.with_proces else 1)
-    ))
+    args = parser.parse_args(remaining_args)
+
+    total_terms = args.iterations
     segments = [
-        (i * args.seg_size, args.seg_size)
-        for i in range(total_terms // args.seg_size)
+        (i * args.seg_size, min(args.seg_size, total_terms - i * args.seg_size))
+        for i in range((total_terms + args.seg_size - 1) // args.seg_size)
     ]
 
     start_time = time.perf_counter()
     if args.with_gil:
-        part = mode_gil(segments)
+        result = mode_gil(segments)
     elif args.with_thread:
-        part = mode_threadpool(segments)
+        result = mode_threadpool(segments)
     elif args.with_proces:
-        part = mode_process(segments)
+        result = mode_process(segments)
     elif args.pool:
-        part = mode_pool(segments, args.pool)
+        result = mode_pool(segments, args.pool)
     elif args.hosts:
-        part = mode_hosts(segments, args.hosts)
+        result = mode_hosts(segments, args.hosts, args.timeout)
+    elif args.producer_consumer:
+        result = producer_consumer(segments, args.producer_consumer)
     else:
-        p.error("Kein Modus gewählt.")
-    pi_est = part * 4
+        parser.error("Kein Modus gewählt.")
+
+    pi_est = result * 4
     elapsed = time.perf_counter() - start_time
     err = abs(math.pi - pi_est)
-    print(f"π≈{pi_est:.12f}, Fehler={err:.3e}, Zeit={elapsed:.3f}s")
+
+    logging.info(f"π≈{pi_est:.12f}, Fehler={err:.3e}, Zeit={elapsed:.3f}s")
 
 
 if __name__ == "__main__":

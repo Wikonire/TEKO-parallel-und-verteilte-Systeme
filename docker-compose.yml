@@ -1,22 +1,35 @@
 version: '3.8'
+
 services:
   worker1:
-    image: pi-calculator:latest
-    volumes:
-      - ./code:/app
-    working_dir: /app
+    build:
+      context: ./code
+      dockerfile: Dockerfile.ssh
+    container_name: worker1
+    networks:
+      pi-net:
+        aliases:
+          - worker1
+
   worker2:
-    image: pi-calculator:latest
-    volumes:
-      - ./code:/app
-    working_dir: /app
+    build:
+      context: ./code
+      dockerfile: Dockerfile.ssh
+    container_name: worker2
+    networks:
+      pi-net:
+        aliases:
+          - worker2
+
   master:
-    image: pi-calculator:latest
+    image: python:3.10-slim
     volumes:
       - ./code:/app
+      - ./id_rsa:/root/.ssh/id_rsa
     working_dir: /app
-    entrypoint: >
-      sh -c "python pi.py \
-        --hosts worker1,worker2 \
-        --seg-size 500000 \
-        --pool 0"
+    command: tail -f /dev/null
+    networks:
+      - pi-net
+
+networks:
+  pi-net:
