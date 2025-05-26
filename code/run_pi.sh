@@ -1,4 +1,11 @@
 #!/bin/bash
+# Automatisiert den Start mehrerer Docker-Container (worker-Container), welche dann gemeinsam mit einem master-Container die parallele Berechnung durchführen.
+: <<'END_COMMENT'
+Container werden skaliert (je nach Anzahl Hosts).
+SSH-Schlüssel werden generiert und Container für SSH-Zugriff vorbereitet.
+Der Master-Container erhält die Container-Namen (Hostname).
+Startet Berechnung via pi.py verteilt auf die Worker-Hosts.
+END_COMMENT
 
 if [ $# -eq 0 ]; then
     echo "Usage: $0 --hosts=host1,host2,..."
@@ -47,6 +54,7 @@ rm known_hosts.tmp
 # Hosts-Namen korrekt setzen (Container-Hostnamen verwenden)
 HOSTS_COMMA_SEPARATED=$(IFS=','; echo "${WORKER_CONTAINER_NAMES[*]}")
 
+# docker compose master und hosts starten
 docker-compose run --rm master python pi.py --hosts="$HOSTS_COMMA_SEPARATED" --seg-size=100000
 
 

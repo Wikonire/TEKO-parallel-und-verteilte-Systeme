@@ -6,6 +6,19 @@ import matplotlib
 matplotlib.use('Agg')  # nicht-interaktives Backend
 import matplotlib.pyplot as plt
 
+'''
+Führt die π-Berechnung mehrfach durch und erfasst Statistiken zu:
+- π-Wert-Schätzung
+- Berechnungsfehler (Abweichung zu math.pi)
+- Ausführungszeit
+
+Es funktioniert folgendermassen:
+- Ruft mehrfach das Python-Skript pi.py mit den gewünschten Argumenten auf.
+- Extrahiert mittels regulärer Ausdrücke die Ergebnisse (π, Fehler, Zeit).
+- Berechnet daraus statistische Werte wie Mittelwert, Minimum, Maximum, Standardabweichung.
+- Erstellt grafische Auswertung als PNG-Dateien im Ordner doc/.
+'''
+
 def run_pi_script(args, runs):
     pi_estimates, times, errors = [], [], []
 
@@ -22,13 +35,13 @@ def run_pi_script(args, runs):
             errors.append(float(match.group(2)))
             times.append(float(match.group(3)))
         else:
-            print(f"⚠️ Unerwartetes Ausgabeformat im Lauf {i+1}: {output}")
+            print(f"Unerwartetes Ausgabeformat im Lauf {i+1}: {output}")
 
     return np.array(pi_estimates), np.array(errors), np.array(times)
 
 def print_statistics(data, label):
     if data.size == 0:
-        print(f"\n⚠️ Keine gültigen Daten für {label}.")
+        print(f"\nKeine gültigen Daten für {label}.")
         return
     print(f"\nStatistiken für {label}:")
     print(f"  Mittelwert: {np.mean(data):.12f}")
@@ -44,7 +57,7 @@ def plot_data(data, label, ylabel):
     plt.ylabel(ylabel)
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(f"{label.replace(' ', '_').lower()}.png")
+    plt.savefig(f"doc/{label.replace(' ', '_').lower()}.png")
 
 def main():
     parser = argparse.ArgumentParser(description="Statistiken für mehrfache π-Berechnung")

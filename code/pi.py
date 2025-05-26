@@ -47,14 +47,18 @@ def mode_threadpool(segments):
     return sum(results)
 
 
-def mode_process(segments):
+def worker(seg, idx, result_dict):
+    result_dict[idx] = compute_segment(*seg)
+
+def mode_process(segments, worker_func=worker):
     with Manager() as manager:
         result_dict = manager.dict()
 
-        def worker(seg, idx):
-            result_dict[idx] = compute_segment(*seg)
+        processes = [
+            Process(target=worker_func, args=(seg, idx, result_dict))
+            for idx, seg in enumerate(segments)
+        ]
 
-        processes = [Process(target=worker, args=(seg, idx)) for idx, seg in enumerate(segments)]
         for p in processes:
             p.start()
         for p in processes:
@@ -73,25 +77,28 @@ def mode_pool(segments, n):
     return sum(results)
 
 
-def mode_hosts(segments, hosts, timeout):
+def ssh_worker(i, seg, host, results, timeout=60):
+    start, count = seg
+    cmd = [
+        "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+        host, sys.executable, __file__,
+        "--internal", "--start", str(start), "--count", str(count)
+    ]
+    try:
+        logging.info(f"Segment {i} startet auf Host {host} ({start}, {count})")
+        out = subprocess.check_output(cmd, text=True, timeout=timeout)
+        results[i] = float(out.strip())
+    except subprocess.SubprocessError as e:
+        logging.error(f"SSH-Fehler auf {host}: {e}")
+
+
+def mode_hosts(segments, hosts, timeout=60):
     results = [0.0] * len(segments)
+    threads = [
+        threading.Thread(target=ssh_worker, args=(i, seg, hosts[i % len(hosts)], results, timeout))
+        for i, seg in enumerate(segments)
+    ]
 
-    def ssh_worker(i, seg, host):
-        start, count = seg
-        cmd = [
-            "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
-            host, sys.executable, __file__,
-            "--internal", "--start", str(start), "--count", str(count)
-        ]
-        try:
-            logging.info(f"Segment {i} startet auf Host {host} ({start}, {count})")
-            out = subprocess.check_output(cmd, text=True, timeout=60)
-            results[i] = float(out.strip())
-        except subprocess.SubprocessError as e:
-            logging.error(f"SSH-Fehler auf {host}: {e}")
-
-    threads = [threading.Thread(target=ssh_worker, args=(i, seg, hosts[i % len(hosts)]))
-               for i, seg in enumerate(segments)]
     for t in threads:
         t.start()
     for t in threads:
@@ -153,7 +160,7 @@ def main():
         run_internal_mode(args.start, args.count)
 
     # Für alle anderen Modi jetzt explizit die restlichen Argumente prüfen:
-    group = parser.add_mutually_exclusive_group(required=True)
+    group = parser.add_mutually_exclusive_group()
     group.add_argument("--with-gil", action="store_true")
     group.add_argument("--with-thread", action="store_true")
     group.add_argument("--with-proces", action="store_true")
@@ -189,11 +196,11 @@ def main():
     else:
         parser.error("Kein Modus gewählt.")
 
-    pi_est = result * 4
+    pi_test = result * 4
     elapsed = time.perf_counter() - start_time
-    err = abs(math.pi - pi_est)
+    err = abs(math.pi - pi_test)
 
-    logging.info(f"π≈{pi_est:.12f}, Fehler={err:.3e}, Zeit={elapsed:.3f}s")
+    logging.info(f"π≈{pi_test:.12f}, Fehler={err:.3e}, Zeit={elapsed:.3f}s")
 
 
 if __name__ == "__main__":
