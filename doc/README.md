@@ -21,7 +21,7 @@ Vom Root aus:
 ````shell
  cd ../ && source  venv/bin/activate
  pip install pytest-cov
- pytest --cov-report term-missing --cov=pi code/test_pi.py
+ pytest --cov-report term-missing --cov=pi code/test_pi.py -v
 ````
 
 
@@ -52,26 +52,21 @@ python3 pi.py [Modus] --seg-size 1000000
 - `--pool N`
 - `--hosts host1,host2,...`
 
-Beispiel, 4‑Prozess-Pool mit Seggröße 500 000:
+Beispiel, 4‑Prozess-Pool mit Seggrösse 500000:
 ```bash
-python3 pi.py --pool 4 --seg-size 500000
+python3 code/pi.py --pool 4 --seg-size 500000
 ```
 
 Verteilte Ausführung:
 ```bash
-python3 pi.py --hosts a.example.com,b.example.com --seg-size 1000000
+python3 code/pi.py --hosts a.example.com,b.example.com --seg-size 1000000
 ```
 
 ## Architektur
 Siehe `architecture.puml` im PlantUML‑Format im `doc/`‑Ordner.
 
-## Tipps zur Optimierung
-- Erhöhe `--seg-size`, um Overhead zu reduzieren.
-- Pool‑Variante in der Regel am schnellsten.
-- SSH‑Modus abhängig von Netzwerk‑Latenz.
 
-
-# Aufgabenerfüllung: 
+# Aufgabenerfüllung
 Diese Tabelle zeigt übersichtlich und nachvollziehbar, wo und wie jedes Feature im Projekt umgesetzt wurde.
 
 | Feature                                              | Punkte | Erfüllt? | Argumente & Erläuterungen                                                                                                       |
