@@ -9,10 +9,10 @@ services:
         aliases:
           - worker
 
-  master:
+  main:
     build:
       context: ./code
-      dockerfile: Dockerfile.master
+      dockerfile: code/Dockerfile.main
     image: python:3.10-slim
     volumes:
       - ./code:/app
@@ -21,7 +21,7 @@ services:
     networks:
       pi-net:
         aliases:
-          - master
+          - main
     command: tail -f /dev/null
 
 networks:
