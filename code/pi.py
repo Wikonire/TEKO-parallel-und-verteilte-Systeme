@@ -202,33 +202,24 @@ def producer_consumer(segments, num_consumers):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="π-Berechnung via Leibniz-Reihe parallel")
+    parser = argparse.ArgumentParser(
+        description="Parallelberechnung von π via Leibniz-Reihe.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
 
-    parser.add_argument("--internal", action="store_true")
-    parser.add_argument("--start", type=int)
-    parser.add_argument("--count", type=int)
-
-    args, remaining_args = parser.parse_known_args()
-
-    if args.internal:
-        if args.start is None or args.count is None:
-            parser.error("--internal benötigt --start und --count.")
-        run_internal_mode(args.start, args.count)
-
-    # Für alle anderen Modi jetzt explizit die restlichen Argumente prüfen:
     group = parser.add_mutually_exclusive_group()
-    group.add_argument("--with-gil", action="store_true")
-    group.add_argument("--with-thread", action="store_true")
-    group.add_argument("--with-proces", action="store_true")
-    group.add_argument("--pool", type=int)
-    group.add_argument("--hosts", type=lambda s: s.split(","))
-    group.add_argument("--producer-consumer", type=int)
+    group.add_argument("--with-gil", action="store_true", help="Verwende Threads mit Global Interpreter Lock (GIL)")
+    group.add_argument("--with-thread", action="store_true", help="Verwende ThreadPoolExecutor für parallele Ausführung")
+    group.add_argument("--with-proces", action="store_true", help="Verwende Multiprocessing mit separaten Prozessen")
+    group.add_argument("--pool", type=int, help="Verwende einen Prozesspool mit angegebener Anzahl Prozesse")
+    group.add_argument("--hosts", type=lambda s: s.split(","), help="Verwende externe Hosts via SSH (kommagetrennt)")
+    group.add_argument("--producer-consumer", type=int, help="Nutze das Producer-Consumer-Modell mit angegebener Anzahl Consumer-Threads")
 
-    parser.add_argument("-i", "--iterations", type=int, default=1_000_000)
-    parser.add_argument("--seg-size", type=int, default=1_000_000)
-    parser.add_argument("--timeout", type=int, default=60)
+    parser.add_argument("-i", "--iterations", type=int, default=1_000_000, help="Gesamtzahl der Iterationen zur π-Annäherung")
+    parser.add_argument("--seg-size", type=int, default=1_000_000, help="Anzahl Terme pro Segment")
+    parser.add_argument("--timeout", type=int, default=60, help="Timeout in Sekunden für SSH-Verbindungen")
 
-    args = parser.parse_args(remaining_args)
+    args = parser.parse_args()
 
     total_terms = args.iterations
     segments = [
@@ -237,6 +228,7 @@ def main():
     ]
 
     start_time = time.perf_counter()
+
     if args.with_gil:
         result = mode_gil(segments)
     elif args.with_thread:
@@ -250,7 +242,7 @@ def main():
     elif args.producer_consumer:
         result = producer_consumer(segments, args.producer_consumer)
     else:
-        parser.error("Kein Modus gewählt.")
+        parser.error("Kein Berechnungsmodus gewählt. Nutze --help für verfügbare Optionen.")
 
     pi_test = result * 4
     elapsed = time.perf_counter() - start_time
