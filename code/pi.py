@@ -12,16 +12,57 @@ import functools
 
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler(sys.stdout)])
 
+"""
+Calculate the k-th term of the Leibniz series for approximating π.
 
+The Leibniz series for π is an infinite series that converges to π
+when multiplied by 4. Each term in the series alternates in sign
+and is formed based on the given input k.
 
+:param k: int
+    The non-negative integer index of the term in the Leibniz series.
+:return: float
+    The k-th term of the Leibniz series.
+"""
 def leibniz_term(k):
+
     return ((-1) ** k) / (2 * k + 1)
 
+"""
+    This function calculates the sum of a segment from the Leibniz series,
+    starting from a specific index and extending a specific number of terms.
+    The Leibniz series is an infinite series representation for approximating
+    π (pi). Each term in the series is calculated using the `leibniz_term`
+    function and is composed of reciprocals of odd numbers, alternating
+    between addition and subtraction.
 
+    :param start: The starting index of the segment in the Leibniz series.
+                  The index must be a non-negative integer.
+    :param count: The number of terms to include in the segment from the
+                  starting index. This must be a non-negative integer.
+    :return: The sum of the Leibniz series terms in the specified segment.
+    :rtype: float
+"""
 def compute_segment(start, count):
     return sum(leibniz_term(k) for k in range(start, start + count))
 
+"""
+    Executes a segment computation in internal mode and terminates the program.
+
+    This function computes a specific segment defined by the `start` and `count`
+    parameters. The computed result is printed to standard output, and the program
+    exits afterward.
+
+    :param start: The starting index of the segment to compute.
+    :type start: int
+    :param count: The number of items to include in the segment computation.
+    :type count: int
+    :return: This function does not return a value as it exits the program
+             after executing.
+    :rtype: None
+"""
 def run_internal_mode(start, count):
+
     result = compute_segment(start, count)
     print(result, flush=True)
     sys.exit(0)
@@ -41,14 +82,24 @@ def mode_gil(segments):
     return sum(results)
 
 
+"""
+    Executes parallel computation on segments using ThreadPoolExecutor and computes 
+    the sum of the results. Each segment is processed by the `compute_segment` 
+    function, which is applied to the unpacked segment data.
+
+    :param segments: A list of segment data tuples, where each tuple contains 
+        the arguments to be passed to the `compute_segment` function.
+    :type segments: list[tuple]
+
+    :return: The sum of the results obtained by applying `compute_segment` on 
+        all segments in the input list.
+    :rtype: int
+"""
 def mode_threadpool(segments):
+
     with ThreadPoolExecutor() as executor:
         results = executor.map(lambda seg: compute_segment(*seg), segments)
     return sum(results)
-
-
-def worker(seg, idx, result_dict):
-    result_dict[idx] = compute_segment(*seg)
 
 def mode_process(segments, worker_func=worker):
     with Manager() as manager:
@@ -66,14 +117,17 @@ def mode_process(segments, worker_func=worker):
 
         return sum(result_dict.values())
 
-
+# Berechnet die Teilsumme eines einzelnen Segments der Leibniz-Reihe
 def pool_worker(seg):
     return compute_segment(*seg)
 
 
 def mode_pool(segments, n):
+    # Prozesspool erstellen
     with Pool(processes=n) as pool:
+        # Segmente werden parallel verarbeitet
         results = pool.map(pool_worker, segments)
+    # Summe wird erstellt, und Resultat zurückgegeben    
     return sum(results)
 
 
@@ -151,7 +205,6 @@ def main():
     parser.add_argument("--start", type=int)
     parser.add_argument("--count", type=int)
 
-    # Interner Modus separat behandeln, bevor andere Argumente geprüft werden:
     args, remaining_args = parser.parse_known_args()
 
     if args.internal:
