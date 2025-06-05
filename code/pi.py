@@ -67,13 +67,16 @@ def run_internal_mode(start, count):
     print(result, flush=True)
     sys.exit(0)
 
+def worker(seg, idx, result_dict):
+    result_dict[idx] = compute_segment(*seg)
+
 def mode_gil(segments):
     results = [0] * len(segments)
 
-    def worker(i, seg):
-        results[i] = compute_segment(*seg)
-
-    threads = [threading.Thread(target=worker, args=(i, seg)) for i, seg in enumerate(segments)]
+    threads = [
+        threading.Thread(target=worker, args=(seg, i, results))
+        for i, seg in enumerate(segments)
+    ]
     for t in threads:
         t.start()
     for t in threads:
