@@ -6,4 +6,5 @@ WORKDIR /app
 COPY pi.py requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+EXPOSE 22
 CMD ["tail", "-f", "/dev/null"]

@@ -18,8 +18,12 @@ for arg in "$@"; do
       HOSTS="${arg#*=}"
       shift
       ;;
+    --seg-size=*)
+      SEG_SIZE="${arg#*=}"
+      shift
+      ;;
     *)
-      echo "Unknown argument: $arg"
+      echo "Unknown argumendddt: $arg"
       exit 1
       ;;
   esac
@@ -54,5 +58,8 @@ rm known_hosts.tmp
 # Hosts-Namen korrekt setzen (Container-Hostnamen verwenden)
 HOSTS_COMMA_SEPARATED=$(IFS=','; echo "${WORKER_CONTAINER_NAMES[*]}")
 
+echo "Hosts: $HOSTS"
+echo "Segment Size: $SEG_SIZE"
+
 # docker compose main und hosts starten
-docker-compose run --rm main python pi.py --hosts="$HOSTS_COMMA_SEPARATED" --seg-size=100000
+docker-compose run --rm main python pi.py --hosts="$HOSTS_COMMA_SEPARATED" --seg-size="$SEG_SIZE"
