@@ -59,7 +59,7 @@ python3 code/pi.py --pool 4 --seg-size 500000
 
 Verteilte Ausführung:
 ```bash
-python3 code/pi.py --hosts a.example.com,b.example.com --seg-size 1000000
+python3 code/pi.py --hosts host1, host2, host3 --seg-size 1000000
 ```
 
 ## Architektur
